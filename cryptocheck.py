@@ -1,6 +1,10 @@
 import json
 import datetime
+import time
 import websocket
+
+import smtplib
+from email.message import EmailMessage
 
 trading_pairs = ['btcusdt', 'ethusdt', 'bnbusdt']
 interval = '1m'
@@ -8,8 +12,13 @@ close_price = {pair: [] for pair in trading_pairs}
 
 last_logged_date = None
 
-with open("market.log", "w") as f:
+#first line in Market.log (DATE "YEAR-MONTH-DAY")
+with open("market.log", "w", encoding="utf-8") as f:
   f.write(datetime.datetime.now().strftime("%Y-%m-%d") + "\n")
+
+#loads config.json
+with open("config.json") as config_file:
+  config = json.load(config_file)
 
 def process_candle(ws, candle):
   is_candle_closed = candle['x']
@@ -24,18 +33,16 @@ def process_candle(ws, candle):
 
     if close_price[pair]:
       last_close = close_price[pair][-1]
-      trend = "LOWER" if close < last_close else "HIGHER"
+      trend = "DOWN" if close < last_close else "UP"
 
     close_price[pair].append(close)
     log_entry = f"CURRENCY: {pair.upper()}, Close($):{round(close, 2)} High($):{round(high, 2)} Low($):{round(low, 2)} Trend: {trend}"
 
-    #print(log_entry, flush=True)
     return log_entry
   
-
 # log to file logic
 def log_to_file(log_entry):
-  with open("Market.log", "a") as f:
+  with open("Market.log", "a", encoding="utf-8") as f:
     f.write(log_entry + "\n")
 
 def on_message(ws, message):
@@ -45,8 +52,7 @@ def on_message(ws, message):
   log_entry = process_candle(ws, candle)    
   if log_entry:
     print(log_entry)
-    log_to_file(log_entry)
-  
+    log_to_file(log_entry) 
 
 def on_close(ws):
   print(f"### closed ###")
@@ -63,8 +69,48 @@ def start_socket(pair):
   ws.symbol = pair
   ws.run_forever()
 
+#email alert logic
+def email_alert(subject, body, to): 
+  user = config["EMAIL_USER"]
+  password = config["EMAIL_PASS"]
+  
+  msg = EmailMessage()
+  msg.set_content(body)
+  msg['subject'] = subject
+  msg['to'] = to
+  msg['from'] = user
+
+  server = smtplib.SMTP("smtp.gmail.com", 587)
+  server.starttls()
+  server.login(user, password)
+  server.send_message(msg)
+  server.quit()
+
+#reads market.log file and calls email_alert with content of market.log
+def send_market_log():
+  try:
+    with open("Market.log", "r", encoding="utf-8") as f:
+      log_content = f.read().strip()
+      print(log_content)
+
+    if log_content:
+      email_alert("Market Log Update", log_content, config["EMAIL_USER"])
+      print("email sent success")
+    
+  except Exception as e:
+    print(f"error: {e}")
+
+def periodic_log_email():
+  while True:
+    time.sleep(120)
+    send_market_log()
+
 if __name__ == "__main__":
   import threading
+
   for pair in trading_pairs:
     ws_thread = threading.Thread(target=start_socket, args=(pair,))
     ws_thread.start()
+
+  log_thread = threading.Thread(target=periodic_log_email, daemon=True)
+  log_thread.start()
