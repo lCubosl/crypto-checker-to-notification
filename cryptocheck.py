@@ -1,13 +1,14 @@
-#todo
-#1.try to add emojis via their unicode value 
-
 import json
 import datetime
 import time
 import websocket
+import sys
 
 import smtplib
 from email.message import EmailMessage
+
+
+sys.stdout.reconfigure(encoding="utf-8")
 
 trading_pairs = ['btcusdt', 'ethusdt', 'bnbusdt']
 interval = '1m'
@@ -36,10 +37,10 @@ def process_candle(ws, candle):
 
     if close_price[pair]:
       last_close = close_price[pair][-1]
-      trend = "DOWN" if close < last_close else "UP"
+      trend = "🔴" if close < last_close else "🟢"
 
     close_price[pair].append(close)
-    log_entry = f"($){pair.upper()}: Close:{round(close, 2)}, High:{round(high, 2)}, Low:{round(low, 2)} | Trend: {trend}"
+    log_entry = f"{pair.upper()}: {round(close, 2)}$ | H:{round(high, 2)}, L:{round(low, 2)} | Trend: {trend}"
 
     return log_entry
   
@@ -54,7 +55,7 @@ def on_message(ws, message):
 
   log_entry = process_candle(ws, candle)    
   if log_entry:
-    print(log_entry)
+    #print(log_entry)
     log_to_file(log_entry) 
 
 def on_close(ws):
@@ -101,7 +102,7 @@ def send_market_log():
       print("email sent success")
     
   except Exception as e:
-    print(f"error: {e}")
+    print(f"error MAIL NOT SENT: {e}")
 
 def periodic_log_email():
   while True:
