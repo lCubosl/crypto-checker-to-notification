@@ -1,3 +1,6 @@
+#todo
+#1. fix market.log trend not working properly after being initialized with market_temp.log values
+
 import json
 import datetime
 import time
@@ -7,23 +10,35 @@ import sys
 import smtplib
 from email.message import EmailMessage
 
-
 sys.stdout.reconfigure(encoding="utf-8")
 
 trading_pairs = ['btcusdt', 'ethusdt', 'bnbusdt']
 interval = '1m'
 close_price = {pair: [] for pair in trading_pairs}
+temp_logs = {pair: [] for pair in trading_pairs}
 
 last_logged_date = None
 
 #first line in Market.log (DATE "YEAR-MONTH-DAY")
-with open("market.log", "w", encoding="utf-8") as f:
+with open("Market.log", "w", encoding="utf-8") as f:
   f.write(datetime.datetime.now().strftime("%Y-%m-%d") + "\n")
+  try:
+    with open("Market_temp.log", "r", encoding="utf-8") as temp_f:
+      temp_data = temp_f.read().strip()
+      if temp_data:
+        f.write(temp_data + "\n")
+
+  except FileNotFoundError:
+    print("not found, skip")
+  
+  except Exception as e:
+    print(f"Market_temp.log: {e}")    
 
 #loads config.json
 with open("config.json") as config_file:
   config = json.load(config_file)
 
+#reads candles and writes VALUE$, HIGH, LOW and TREND. needs to be called by other functions
 def process_candle(ws, candle):
   is_candle_closed = candle['x']
   close = float(candle['c'])
@@ -41,13 +56,22 @@ def process_candle(ws, candle):
 
     close_price[pair].append(close)
     log_entry = f"{pair.upper()}: {round(close, 2)}$ | H:{round(high, 2)}, L:{round(low, 2)} | Trend: {trend}"
-
+    
     return log_entry
   
 # log to file logic
-def log_to_file(log_entry):
+def log_to_file(log_entry, pair):
+  global temp_logs
+
   with open("Market.log", "a", encoding="utf-8") as f:
     f.write(log_entry + "\n")
+
+  temp_logs[pair] = log_entry
+
+  with open("Market_temp.log", "w", encoding="utf-8") as f:
+    for entry in temp_logs.values():
+      if entry:
+        f.write(entry + "\n")
 
 def on_message(ws, message):
   json_message = json.loads(message)
@@ -56,7 +80,7 @@ def on_message(ws, message):
   log_entry = process_candle(ws, candle)    
   if log_entry:
     #print(log_entry)
-    log_to_file(log_entry) 
+    log_to_file(log_entry, ws.symbol) 
 
 def on_close(ws):
   print(f"### closed ###")
