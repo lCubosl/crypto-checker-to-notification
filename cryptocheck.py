@@ -1,3 +1,6 @@
+#todo
+#1.try to add emojis via their unicode value 
+
 import json
 import datetime
 import time
@@ -36,7 +39,7 @@ def process_candle(ws, candle):
       trend = "DOWN" if close < last_close else "UP"
 
     close_price[pair].append(close)
-    log_entry = f"CURRENCY: {pair.upper()}, Close($):{round(close, 2)} High($):{round(high, 2)} Low($):{round(low, 2)} Trend: {trend}"
+    log_entry = f"($){pair.upper()}: Close:{round(close, 2)}, High:{round(high, 2)}, Low:{round(low, 2)} | Trend: {trend}"
 
     return log_entry
   
